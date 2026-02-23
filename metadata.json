@@ -1,0 +1,5 @@
+{
+  "name": "Capacity Pattern Generator",
+  "description": "A generative vector design tool for creating complex geometric patterns using radial and wedge distributions. Supports SVG export.",
+  "requestFramePermissions": []
+}
