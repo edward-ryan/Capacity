@@ -12,6 +12,7 @@ interface LayerCardProps {
   onUpdate: (id: number, updates: Partial<Layer>) => void;
   onRemove: (id: number) => void;
   onDuplicate: (id: number) => void;
+  isHighDensityRestricted?: boolean;
   
   // DnD Props
   isDraggable?: boolean;
@@ -28,6 +29,7 @@ export const LayerCard: React.FC<LayerCardProps> = ({
   onUpdate, 
   onRemove, 
   onDuplicate,
+  isHighDensityRestricted,
   isDraggable,
   onDragStart,
   onDragEnter,
@@ -172,6 +174,9 @@ export const LayerCard: React.FC<LayerCardProps> = ({
       // CONFIG.lineCounts: [4, 8, 12, 16, 24, 32, 48]
       // Index 5 is 32
       allowedMaxIndex = 5;
+  } else if (layer.type === 'radial' && isHighDensityRestricted) {
+      // Limit Radial to 16 lines if another layer is high density
+      allowedMaxIndex = 3;
   }
 
   // Ensure current index is valid if we switched types or reduced array size
@@ -211,7 +216,7 @@ export const LayerCard: React.FC<LayerCardProps> = ({
             <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-border text-text-muted uppercase tracking-wider">
                 {layer.type.replace('cropped-radial', 'crop')}
             </span>
-            <span className="text-xs font-semibold text-text-main">Layer {index + 1}</span>
+            <span className="text-xs text-text-main">Layer {index + 1}</span>
         </div>
 
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>

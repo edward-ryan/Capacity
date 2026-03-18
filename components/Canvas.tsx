@@ -15,6 +15,7 @@ interface CanvasProps {
   easeOut: number;
   outlineMode: OutlineMode;
   drawDirection: DrawDirection;
+  strokeWeight: number;
 }
 
 export interface CanvasHandle {
@@ -185,7 +186,8 @@ const drawRadial = (
   strokeColor: number, 
   bgColor: string,
   layerIndex: number,
-  totalLayers: number
+  totalLayers: number,
+  strokeWeight: number
 ) => {
   const count = CONFIG.lineCounts[data.countIndex];
   const cx = p.width / 2;
@@ -210,7 +212,7 @@ const drawRadial = (
   }
 
   p.stroke(strokeColor);
-  p.strokeWeight(1);
+  p.strokeWeight(strokeWeight);
   p.noFill();
 
   for (let i = 0; i < count; i++) {
@@ -285,7 +287,8 @@ const drawWedge = (
   strokeColor: number, 
   bgColor: string,
   layerIndex: number,
-  totalLayers: number
+  totalLayers: number,
+  strokeWeight: number
 ) => {
   let cx = 400;
   let cy = 0;
@@ -320,7 +323,7 @@ const drawWedge = (
   }
 
   p.stroke(strokeColor);
-  p.strokeWeight(1);
+  p.strokeWeight(strokeWeight);
   p.noFill();
 
   const count = WEDGE_COUNTS[data.countIndex];
@@ -389,7 +392,8 @@ const drawCroppedRadial = (
   strokeColor: number, 
   bgColor: string,
   layerIndex: number,
-  totalLayers: number
+  totalLayers: number,
+  strokeWeight: number
 ) => {
   let cx = 0;
   let cy = 0;
@@ -427,7 +431,7 @@ const drawCroppedRadial = (
   }
 
   p.stroke(strokeColor);
-  p.strokeWeight(1);
+  p.strokeWeight(strokeWeight);
   p.noFill();
 
   const count = CONFIG.lineCounts[data.countIndex];
@@ -495,7 +499,8 @@ const renderScene = (p: any, opts: {
     easeIn: number,
     easeOut: number,
     outlineMode: OutlineMode,
-    drawDirection: DrawDirection
+    drawDirection: DrawDirection,
+    strokeWeight: number
 }) => {
     const bg = opts.isDarkMode ? '#000000' : '#ffffff';
     const strokeColor = opts.isDarkMode ? 255 : 0;
@@ -506,11 +511,11 @@ const renderScene = (p: any, opts: {
       if (!layer.visible) return;
       const totalLayers = opts.layers.length;
       if (layer.type === 'radial') {
-        drawRadial(p, layer as RadialLayer, opts.animMode, opts.easeIn, opts.easeOut, opts.outlineMode, opts.drawDirection, opts.progress, strokeColor, bg, index, totalLayers);
+        drawRadial(p, layer as RadialLayer, opts.animMode, opts.easeIn, opts.easeOut, opts.outlineMode, opts.drawDirection, opts.progress, strokeColor, bg, index, totalLayers, opts.strokeWeight);
       } else if (layer.type === 'wedge') {
-        drawWedge(p, layer as WedgeLayer, opts.direction, opts.spread, opts.animMode, opts.easeIn, opts.easeOut, opts.outlineMode, opts.drawDirection, opts.progress, strokeColor, bg, index, totalLayers);
+        drawWedge(p, layer as WedgeLayer, opts.direction, opts.spread, opts.animMode, opts.easeIn, opts.easeOut, opts.outlineMode, opts.drawDirection, opts.progress, strokeColor, bg, index, totalLayers, opts.strokeWeight);
       } else if (layer.type === 'cropped-radial') {
-        drawCroppedRadial(p, layer as CroppedRadialLayer, opts.corner, opts.animMode, opts.easeIn, opts.easeOut, opts.outlineMode, opts.drawDirection, opts.progress, strokeColor, bg, index, totalLayers);
+        drawCroppedRadial(p, layer as CroppedRadialLayer, opts.corner, opts.animMode, opts.easeIn, opts.easeOut, opts.outlineMode, opts.drawDirection, opts.progress, strokeColor, bg, index, totalLayers, opts.strokeWeight);
       }
     });
 };
@@ -518,7 +523,7 @@ const renderScene = (p: any, opts: {
 // --- Component ---
 
 const Canvas = forwardRef<CanvasHandle, CanvasProps>(({ 
-  layers, direction, spreadAngle, corner, isDarkMode, animationProgress, animationMode, easeIn, easeOut, outlineMode, drawDirection
+  layers, direction, spreadAngle, corner, isDarkMode, animationProgress, animationMode, easeIn, easeOut, outlineMode, drawDirection, strokeWeight
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const p5InstanceRef = useRef<any>(null);
@@ -534,7 +539,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(({
       easeIn,
       easeOut,
       outlineMode,
-      drawDirection
+      drawDirection,
+      strokeWeight
   });
 
   useEffect(() => {
@@ -549,9 +555,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(({
       easeIn,
       easeOut,
       outlineMode,
-      drawDirection
+      drawDirection,
+      strokeWeight
     };
-  }, [layers, direction, spreadAngle, corner, isDarkMode, animationProgress, animationMode, easeIn, easeOut, outlineMode, drawDirection]);
+  }, [layers, direction, spreadAngle, corner, isDarkMode, animationProgress, animationMode, easeIn, easeOut, outlineMode, drawDirection, strokeWeight]);
 
   useImperativeHandle(ref, () => ({
     downloadSVG: () => {
@@ -585,7 +592,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(({
                easeIn: stateRef.current.easeIn,
                easeOut: stateRef.current.easeOut,
                outlineMode: stateRef.current.outlineMode,
-               drawDirection: stateRef.current.drawDirection
+               drawDirection: stateRef.current.drawDirection,
+               strokeWeight: stateRef.current.strokeWeight
            });
            
            p.save(getPatternFileName(activeType, 'svg'));
@@ -628,7 +636,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(({
             easeIn: s.easeIn,
             easeOut: s.easeOut,
             outlineMode: s.outlineMode,
-            drawDirection: s.drawDirection
+            drawDirection: s.drawDirection,
+            strokeWeight: s.strokeWeight
         });
       };
     };

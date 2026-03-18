@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Download, ArrowDown, ArrowUp, ArrowRight, ArrowLeft, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, Sun, Moon, Play, Square, Video, Settings2, Shuffle, PanelRightClose, PanelRightOpen, RotateCcw, FileImage, Loader2 } from 'lucide-react';
+import { Plus, Download, ArrowDown, ArrowUp, ArrowRight, ArrowLeft, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, Sun, Moon, Play, Square, Video, Settings2, Shuffle, PanelRightClose, PanelRightOpen, RotateCcw, FileImage, Loader2, ArrowUpDown } from 'lucide-react';
 import Canvas, { CanvasHandle } from './components/Canvas';
 import { LayerCard } from './components/LayerCard';
 import { Layer, PatternMode, Direction, Corner, AnimationMode, OutlineMode, DrawDirection } from './types';
@@ -55,6 +55,7 @@ const App: React.FC = () => {
   
   const [outlineMode, setOutlineMode] = useState<OutlineMode>('draw');
   const [drawDirection, setDrawDirection] = useState<DrawDirection>('outwards');
+  const [strokeWeight, setStrokeWeight] = useState(1);
 
   const [isExportingGIF, setIsExportingGIF] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -92,6 +93,15 @@ const App: React.FC = () => {
   const addLayer = () => {
     const newLayer = createLayer(activeTab);
     newLayer.id = Date.now() + Math.random(); 
+    
+    // Enforce Radial Constraint: Only one layer > 16 lines (countIndex > 3)
+    if (activeTab === 'radial' && newLayer.countIndex > 3) {
+      const hasHighDensity = layers.some(l => l.type === 'radial' && l.countIndex > 3);
+      if (hasHighDensity) {
+        newLayer.countIndex = 3; // Cap at 16 lines
+      }
+    }
+
     setLayers(prev => [...prev, newLayer]);
     setExpandedLayerId(newLayer.id);
   };
@@ -100,6 +110,10 @@ const App: React.FC = () => {
       const newLayer = createLayer(activeTab);
       setLayers([newLayer]);
       setExpandedLayerId(newLayer.id);
+  };
+
+  const shuffleLayers = () => {
+    setLayers(prev => [...prev].sort(() => Math.random() - 0.5));
   };
 
   const generateRandomComposition = () => {
@@ -123,11 +137,24 @@ const App: React.FC = () => {
     const countArray = activeTab === 'wedge' ? WEDGE_COUNTS : CONFIG.lineCounts;
     let maxIdxLimit = countArray.length - 1;
     if (activeTab === 'cropped-radial') maxIdxLimit = 5;
+
+    // Radial specific limit for randomizer: only one high density layer
+    let highDensityIndex = -1;
+    if (activeTab === 'radial') {
+        highDensityIndex = Math.floor(Math.random() * count);
+    }
+
     const usedCounts: number[] = [];
     let maxLimitUsed = false;
     for (let i = 0; i < count; i++) {
         let candidates: number[] = [];
-        for (let idx = 0; idx <= maxIdxLimit; idx++) {
+        
+        let currentMaxIdx = maxIdxLimit;
+        if (activeTab === 'radial') {
+            currentMaxIdx = (i === highDensityIndex) ? maxIdxLimit : 3;
+        }
+
+        for (let idx = 0; idx <= currentMaxIdx; idx++) {
              if (idx === maxIdxLimit && maxLimitUsed) continue;
              const existing = usedCounts.filter(c => c === idx).length;
              if (existing >= 2) continue;
@@ -137,25 +164,57 @@ const App: React.FC = () => {
         const chosen = candidates[Math.floor(Math.random() * candidates.length)];
         newLayers[i].countIndex = chosen;
         usedCounts.push(chosen);
-        // Fixed: chosen is a number, maxLimitUsed is a boolean. Comparison should be with maxIdxLimit to track max density usage.
         if (chosen === maxIdxLimit) maxLimitUsed = true;
     }
-    const maxOuterIdx = Math.floor(Math.random() * count);
-    const zeroInnerIdx = Math.floor(Math.random() * count);
-    for (let i = 0; i < count; i++) {
-        const l = newLayers[i];
-        let maxR = 0;
-        if (l.type === 'radial') maxR = 600; 
-        else if (l.type === 'wedge') maxR = 800;
-        else if (l.type === 'cropped-radial') maxR = 1200;
-        if (i === zeroInnerIdx) l.rInner = 0;
-        else l.rInner = Math.floor(Math.random() * (maxR * 0.4));
-        if (i === maxOuterIdx) l.rOuter = maxR;
-        else {
-            const minOuter = l.rInner + 20;
-            l.rOuter = minOuter + Math.floor(Math.random() * (maxR - minOuter));
+
+    if (activeTab === 'radial') {
+        // Improved radius distribution for radial to reduce bunching/overlap
+        // Ensuring at least one "Full Burst" layer (0 to 600)
+        const fullBurstIndex = Math.floor(Math.random() * count);
+        
+        for (let i = 0; i < count; i++) {
+            const l = newLayers[i];
+            if (i === fullBurstIndex) {
+                l.rInner = 0;
+                l.rOuter = 600;
+            } else {
+                // Other layers: mix of inner-focused and outer-focused to create depth without "crosshairs"
+                const type = Math.random();
+                if (type < 0.4) {
+                    // Inner focused
+                    l.rInner = 0;
+                    l.rOuter = 150 + Math.floor(Math.random() * 250);
+                } else if (type < 0.7) {
+                    // Mid to Outer
+                    l.rInner = 100 + Math.floor(Math.random() * 200);
+                    l.rOuter = l.rInner + 150 + Math.floor(Math.random() * 250);
+                } else {
+                    // Outer ring
+                    l.rInner = 300 + Math.floor(Math.random() * 150);
+                    l.rOuter = 600;
+                }
+            }
+            // Ensure rOuter doesn't exceed 600
+            l.rOuter = Math.min(600, l.rOuter);
         }
-        if (l.type === 'cropped-radial') l.startOffset = Math.floor(Math.random() * 5);
+    } else {
+        const maxOuterIdx = Math.floor(Math.random() * count);
+        const zeroInnerIdx = Math.floor(Math.random() * count);
+        for (let i = 0; i < count; i++) {
+            const l = newLayers[i];
+            let maxR = 0;
+            if (l.type === 'radial') maxR = 600; 
+            else if (l.type === 'wedge') maxR = 800;
+            else if (l.type === 'cropped-radial') maxR = 1200;
+            if (i === zeroInnerIdx) l.rInner = 0;
+            else l.rInner = Math.floor(Math.random() * (maxR * 0.4));
+            if (i === maxOuterIdx) l.rOuter = maxR;
+            else {
+                const minOuter = l.rInner + 20;
+                l.rOuter = minOuter + Math.floor(Math.random() * (maxR - minOuter));
+            }
+            if (l.type === 'cropped-radial') l.startOffset = Math.floor(Math.random() * 5);
+        }
     }
     setExpandedLayerId(newLayers[0].id);
     setLayers(newLayers);
@@ -165,6 +224,12 @@ const App: React.FC = () => {
     const layerToCopy = layers.find(l => l.id === id);
     if (layerToCopy) {
       const newLayer = { ...layerToCopy, id: Date.now() + Math.random() };
+      
+      // Enforce Radial Constraint on duplicate
+      if (activeTab === 'radial' && newLayer.countIndex > 3) {
+        newLayer.countIndex = 3; // Cap at 16 lines
+      }
+
       setLayers(prev => [...prev, newLayer]);
       setExpandedLayerId(newLayer.id);
     }
@@ -175,7 +240,21 @@ const App: React.FC = () => {
   };
 
   const updateLayer = (id: number, updates: Partial<Layer>) => {
-    setLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } as Layer : l));
+    setLayers(prev => {
+      let newLayers = prev.map(l => l.id === id ? { ...l, ...updates } as Layer : l);
+      
+      // Enforce Radial Constraint: Only one layer > 16 lines (countIndex > 3)
+      if (activeTab === 'radial' && updates.countIndex !== undefined && updates.countIndex > 3) {
+        newLayers = newLayers.map(l => {
+          if (l.id !== id && l.type === 'radial' && l.countIndex > 3) {
+            return { ...l, countIndex: 3 }; // Downgrade other high-density layers to 16 lines
+          }
+          return l;
+        });
+      }
+      
+      return newLayers;
+    });
   };
 
   const handleToggleExpand = (id: number) => {
@@ -387,13 +466,21 @@ const App: React.FC = () => {
           </div>
         </div>
 
+        <div className="flex border-b border-border">
+          {(['radial', 'wedge', 'cropped-radial'] as PatternMode[]).map((mode) => (
+            <button key={mode} onClick={() => switchTab(mode)} className={`flex-1 py-3 bg-transparent border-0 border-b-2 font-mono text-[10px] uppercase transition-all ${activeTab === mode ? 'border-accent text-accent bg-accent/5' : 'border-transparent text-text-muted hover:text-text-main'}`}>
+              {mode.replace('-', ' ')}
+            </button>
+          ))}
+        </div>
+
         {activeTab === 'wedge' && (
           <div className="px-5 py-3 border-b border-border bg-zinc-900/50">
              <div className="mb-3">
                <span className="text-[10px] font-mono text-text-muted uppercase tracking-wide block mb-2">Flow Direction</span>
                <div className="flex gap-2 bg-black/20 p-1 rounded-md">
                   {(['T2B', 'B2T', 'L2R', 'R2L'] as Direction[]).map(d => (
-                     <button key={d} onClick={() => setDirection(d)} className={`flex-1 p-1.5 rounded flex justify-center ${direction === d ? 'bg-accent text-white' : 'text-text-muted hover:bg-white/5'}`}>
+                     <button key={d} onClick={() => setDirection(d)} className={`flex-1 p-1.5 rounded flex justify-center ${direction === d ? 'bg-accent text-black' : 'text-text-muted hover:bg-white/5'}`}>
                         {d === 'T2B' && <ArrowDown size={14} />}
                         {d === 'B2T' && <ArrowUp size={14} />}
                         {d === 'L2R' && <ArrowRight size={14} />}
@@ -409,7 +496,7 @@ const App: React.FC = () => {
                </div>
                <div className="flex gap-1 bg-black/20 p-1 rounded-md">
                   {SPREAD_OPTIONS.map(opt => (
-                    <button key={opt} onClick={() => setSpreadAngle(opt)} className={`flex-1 text-[10px] py-1.5 rounded ${spreadAngle === opt ? 'bg-accent text-white font-bold' : 'text-text-muted hover:text-white'}`}>
+                    <button key={opt} onClick={() => setSpreadAngle(opt)} className={`flex-1 text-[10px] py-1.5 rounded ${spreadAngle === opt ? 'bg-accent text-black' : 'text-text-muted hover:text-white'}`}>
                       {opt}
                     </button>
                   ))}
@@ -423,7 +510,7 @@ const App: React.FC = () => {
              <span className="text-[10px] font-mono text-text-muted uppercase tracking-wide block mb-2">Origin Point</span>
              <div className="grid grid-cols-4 gap-2 w-full">
                  {(['TL', 'T', 'TR', 'L', 'R', 'BL', 'B', 'BR'] as Corner[]).map(c => (
-                   <button key={c} onClick={() => setCorner(c)} className={`p-1.5 rounded flex justify-center items-center ${corner === c ? 'bg-accent text-white' : 'bg-black/20 text-text-muted hover:bg-white/5'}`}>
+                   <button key={c} onClick={() => setCorner(c)} className={`p-1.5 rounded flex justify-center items-center ${corner === c ? 'bg-accent text-black' : 'bg-black/20 text-text-muted hover:bg-white/5'}`}>
                      {c === 'TL' && <ArrowUpLeft size={14} />} {c === 'TR' && <ArrowUpRight size={14} />}
                      {c === 'BL' && <ArrowDownLeft size={14} />} {c === 'BR' && <ArrowDownRight size={14} />}
                      {c === 'T' && <ArrowUp size={14} />} {c === 'B' && <ArrowDown size={14} />}
@@ -434,23 +521,33 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="flex border-b border-border">
-          {(['radial', 'wedge', 'cropped-radial'] as PatternMode[]).map((mode) => (
-            <button key={mode} onClick={() => switchTab(mode)} className={`flex-1 py-3 bg-transparent border-0 border-b-2 font-mono text-[10px] uppercase transition-all ${activeTab === mode ? 'border-accent text-accent bg-accent/5' : 'border-transparent text-text-muted hover:text-text-main'}`}>
-              {mode.replace('-', ' ')}
-            </button>
-          ))}
-        </div>
-
         <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-zinc-700">
-          {layers.map((layer, index) => (
-            <LayerCard key={layer.id} index={index} layer={layer} isExpanded={expandedLayerId === layer.id} onToggleExpand={handleToggleExpand} onUpdate={updateLayer} onRemove={removeLayer} onDuplicate={duplicateLayer} isDraggable={true} onDragStart={handleDragStart} onDragEnter={handleDragEnter} onDragEnd={handleDragEnd} />
-          ))}
+          {(() => {
+            const highDensityLayerId = layers.find(l => l.type === 'radial' && l.countIndex > 3)?.id;
+            return layers.map((layer, index) => (
+              <LayerCard 
+                key={layer.id} 
+                index={index} 
+                layer={layer} 
+                isExpanded={expandedLayerId === layer.id} 
+                onToggleExpand={handleToggleExpand} 
+                onUpdate={updateLayer} 
+                onRemove={removeLayer} 
+                onDuplicate={duplicateLayer} 
+                isDraggable={true} 
+                onDragStart={handleDragStart} 
+                onDragEnter={handleDragEnter} 
+                onDragEnd={handleDragEnd}
+                isHighDensityRestricted={activeTab === 'radial' && highDensityLayerId !== undefined && highDensityLayerId !== layer.id}
+              />
+            ));
+          })()}
         </div>
 
         <div className="p-4 border-t border-border bg-[#1c1c1f]">
             <div className="flex gap-2">
                 <button onClick={addLayer} className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-text-main text-[11px] font-mono uppercase py-3 rounded transition-colors border border-zinc-700"><Plus size={14} strokeWidth={3} />Add</button>
+                <button onClick={shuffleLayers} className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-text-main py-3 px-3 rounded transition-colors border border-zinc-700" title="Shuffle Layers"><ArrowUpDown size={14} /></button>
                 <button onClick={generateRandomComposition} className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-text-main py-3 px-3 rounded transition-colors border border-zinc-700" title="Randomize"><Shuffle size={14} /></button>
                 <button onClick={resetComposition} className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-text-main py-3 px-3 rounded transition-colors border border-zinc-700" title="Reset"><RotateCcw size={14} /></button>
             </div>
@@ -459,7 +556,7 @@ const App: React.FC = () => {
 
       {/* Center Panel */}
       <div className="flex-1 flex flex-col relative min-w-0">
-          <Canvas layers={layers} direction={direction} spreadAngle={spreadAngle} corner={corner} isDarkMode={isDarkMode} animationProgress={progress} animationMode={animMode} easeIn={easeIn} easeOut={easeOut} outlineMode={outlineMode} drawDirection={drawDirection} ref={canvasRef} />
+          <Canvas layers={layers} direction={direction} spreadAngle={spreadAngle} corner={corner} isDarkMode={isDarkMode} animationProgress={progress} animationMode={animMode} easeIn={easeIn} easeOut={easeOut} outlineMode={outlineMode} drawDirection={drawDirection} strokeWeight={strokeWeight} ref={canvasRef} />
           {!isRightPanelOpen && (
             <button onClick={() => setIsRightPanelOpen(true)} className="absolute top-5 right-5 z-20 w-8 h-8 rounded-md bg-panel border border-border flex items-center justify-center text-text-muted hover:text-white transition-colors shadow-lg"><Settings2 size={16} /></button>
           )}
@@ -500,7 +597,7 @@ const App: React.FC = () => {
                      <div className="flex flex-col gap-4 mb-4">
                         <div>
                              <h3 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest mb-2 pl-1">Growth</h3>
-                             <div className="flex flex-col gap-1.5">
+                             <div className="grid grid-cols-2 gap-1.5">
                                {(['linear', 'staccato', 'spiral', 'random'] as AnimationMode[]).map(mode => (
                                  <button key={mode} onClick={() => setAnimMode(mode)} className={`flex items-center justify-between px-3 py-2 rounded transition-all text-[11px] uppercase font-mono border ${animMode === mode ? 'bg-accent/10 border-accent text-accent' : 'bg-black/20 border-transparent text-text-muted hover:text-white hover:bg-white/5'}`}>
                                      <span>{mode}</span>{animMode === mode && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
@@ -510,7 +607,7 @@ const App: React.FC = () => {
                         </div>
                         <div>
                              <h3 className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest mb-2 pl-1">Radial Wipe</h3>
-                             <div className="flex flex-col gap-1.5">
+                             <div className="grid grid-cols-2 gap-1.5">
                                {[{ id: 'wipe', label: 'Single' }, { id: 'two-way-wipe', label: 'Two Way' }, { id: 'random-wipe', label: 'Random' }].map(item => (
                                  <button key={item.id} onClick={() => setAnimMode(item.id as AnimationMode)} className={`flex items-center justify-between px-3 py-2 rounded transition-all text-[11px] uppercase font-mono border ${animMode === item.id ? 'bg-accent/10 border-accent text-accent' : 'bg-black/20 border-transparent text-text-muted hover:text-white hover:bg-white/5'}`}>
                                      <span>{item.label}</span>{animMode === item.id && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
@@ -538,8 +635,9 @@ const App: React.FC = () => {
                      <Slider label="Ease In Velocity" min={0} max={1} step={0.1} value={easeIn} onChange={setEaseIn} displayValue={easeIn.toFixed(1)} />
                      <Slider label="Ease Out Velocity" min={0} max={1} step={0.1} value={easeOut} onChange={setEaseOut} displayValue={easeOut.toFixed(1)} />
                      <Slider label="Duration" min={2} max={10} step={0.5} value={duration} onChange={setDuration} displayValue={`${duration}s`} />
+                     <Slider label="Stroke Weight" min={1} max={3} step={1} value={strokeWeight} onChange={setStrokeWeight} displayValue={`${strokeWeight}px`} />
                      
-                     <button onClick={togglePlay} className={`w-full py-3 rounded flex items-center justify-center gap-2 border ${isPlaying ? 'bg-accent border-accent text-white' : 'bg-black/20 border-border text-text-main hover:bg-zinc-700'}`}>
+                     <button onClick={togglePlay} className={`w-full py-3 rounded flex items-center justify-center gap-2 border ${isPlaying ? 'bg-accent border-accent text-black' : 'bg-black/20 border-border text-text-main hover:bg-zinc-700'}`}>
                         {isPlaying ? <Square size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                         <span className="text-[11px] font-mono uppercase font-bold">{isPlaying ? 'Stop' : 'Play Preview'}</span>
                      </button>
@@ -547,18 +645,18 @@ const App: React.FC = () => {
 
                   <div className="border-t border-border mb-8" />
                   <span className="text-[10px] font-mono text-text-muted uppercase tracking-wide block mb-4">Export Composition</span>
-                  <div className="grid gap-3">
-                    <button onClick={handleExportVideo} disabled={isRecordingRef.current || isExportingGIF} className="flex items-center justify-between bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-text-main text-[11px] font-mono uppercase py-3 px-4 rounded transition-colors border border-zinc-700 group">
-                        <span className="flex items-center gap-2"><Video size={14} className="group-hover:text-accent" />{isRecordingRef.current ? 'Recording...' : 'Export Video (MP4)'}</span>
-                        <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-accent" />
+                  <div className="flex gap-2">
+                    <button onClick={handleExportVideo} disabled={isRecordingRef.current || isExportingGIF} className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-text-main text-[10px] font-mono uppercase py-3 rounded transition-colors border border-zinc-700 group" title="Export MP4">
+                        <Video size={14} className="group-hover:text-accent" />
+                        <span>Mp4</span>
                     </button>
-                    <button onClick={handleExportGIF} disabled={!gifLibReady || isRecordingRef.current || isExportingGIF} className="flex items-center justify-between bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-text-main text-[11px] font-mono uppercase py-3 px-4 rounded transition-colors border border-zinc-700 group">
-                        <span className="flex items-center gap-2"><FileImage size={14} className="group-hover:text-accent" />{!gifLibReady ? 'Loading Module...' : 'Export GIF'}</span>
-                        <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-accent" />
+                    <button onClick={handleExportGIF} disabled={!gifLibReady || isRecordingRef.current || isExportingGIF} className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-text-main text-[10px] font-mono uppercase py-3 rounded transition-colors border border-zinc-700 group" title="Export GIF">
+                        <FileImage size={14} className="group-hover:text-accent" />
+                        <span>Gif</span>
                     </button>
-                    <button onClick={handleDownloadSVG} className="flex items-center justify-between bg-zinc-800 hover:bg-zinc-700 text-text-main text-[11px] font-mono uppercase py-3 px-4 rounded transition-colors border border-zinc-700 group">
-                        <span className="flex items-center gap-2"><Download size={14} className="group-hover:text-accent" />Export SVG</span>
-                        <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-accent" />
+                    <button onClick={handleDownloadSVG} className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-text-main text-[10px] font-mono uppercase py-3 rounded transition-colors border border-zinc-700 group" title="Export SVG">
+                        <Download size={14} className="group-hover:text-accent" />
+                        <span>Svg</span>
                     </button>
                   </div>
               </div>
