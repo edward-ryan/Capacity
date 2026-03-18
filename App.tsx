@@ -457,9 +457,11 @@ const App: React.FC = () => {
       <div className="w-[340px] bg-panel border-r border-border flex flex-col shadow-2xl z-10 shrink-0">
         <div className="p-5 border-b border-border">
           <div className="flex justify-between items-start mb-2">
-            <h1 className="font-gothic text-2xl leading-[1.1] tracking-tight text-white uppercase max-w-[180px]">
-              Capacity Pattern Generator
-            </h1>
+            <img
+              src={isDarkMode ? '/logo-light.png' : '/logo-dark.png'}
+              alt="Capacity"
+              className="h-8 w-auto"
+            />
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-text-muted hover:text-white transition-colors pt-1">
                {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
