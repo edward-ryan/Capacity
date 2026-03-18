@@ -456,16 +456,13 @@ const App: React.FC = () => {
       {/* Left Panel */}
       <div className="w-[340px] bg-panel border-r border-border flex flex-col shadow-2xl z-10 shrink-0">
         <div className="p-5 border-b border-border">
-          <div className="flex justify-between items-start mb-2">
-            <img
-              src={isDarkMode ? '/logo-light.png' : '/logo-dark.png'}
-              alt="Capacity"
-              className="h-8 w-auto"
-            />
+          <div className="flex justify-between items-start mb-1">
+            <img src="/Capacity_Logo_White_2000w.svg" alt="Capacity" className="h-10 w-auto" />
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-text-muted hover:text-white transition-colors pt-1">
-               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
+          <p className="font-mono text-[10px] text-white tracking-widest">PATTERN GENERATOR</p>
         </div>
 
         <div className="flex border-b border-border">
